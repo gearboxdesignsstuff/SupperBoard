@@ -76,6 +76,14 @@ select.field, select.store { appearance: none; -webkit-appearance: none; cursor:
 .meal.selected { background: var(--accent-soft); }
 .meal.selected .tick { background: var(--accent); border-color: var(--accent); }
 
+.cat { font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: 2px; border: 1px solid currentColor; }
+.cat.main { color: var(--accent); } .cat.side { color: var(--aldi); } .cat.dessert { color: var(--other); }
+.seg { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.seg button { flex: 1; border: 0; background: var(--surface); padding: 10px 8px; font-weight: 600; color: var(--muted); }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.mealnote { display: block; font-size: 0.86rem; color: var(--ink); background: var(--surface-2); border-left: 3px solid var(--accent); border-radius: 0 8px 8px 0; padding: 6px 10px; margin-top: 6px; white-space: pre-wrap; overflow-wrap: anywhere; }
+textarea.field.short { min-height: 90px; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .chip { border: 1px solid var(--line); background: transparent; border-radius: 999px; padding: 5px 12px; font-size: 0.84rem; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
 .chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
@@ -183,6 +191,12 @@ const STORES = [
   { id: "other",  name: "Other",  color: "var(--other)" },
 ];
 const UNSET = { id: "", name: "No store picked", color: "var(--none)" };
+const CATS = [ { id: "main", name: "Main", plural: "Mains" }, { id: "side", name: "Side", plural: "Sides" }, { id: "dessert", name: "Dessert", plural: "Desserts" } ];
+const catOf = m => CATS.some(c => c.id === m.category) ? m.category : "main";
+const catName = id => CATS.find(c => c.id === id)?.name || "Main";
+const catChips = (attr, cur, pool) => `<div class="chips">
+  <button class="chip" ${attr}="all" aria-pressed="${cur === "all"}">All</button>
+  ${CATS.map(c => `<button class="chip" ${attr}="${c.id}" aria-pressed="${cur === c.id}">${c.plural} <span style="font-variant-numeric:tabular-nums">${pool.filter(m => catOf(m) === c.id).length}</span></button>`).join("")}</div>`;
 
 function blankWeek() { return { meals: {}, have: {}, checked: {}, extras: {}, startedAt: Date.now() }; }
 function blankData() { return { meals: [], week: blankWeek(), prefs: { store: {}, rank: {} }, savedAt: 0 }; }
@@ -207,7 +221,7 @@ window.addEventListener("pagehide", () => { clearTimeout(saveT); try { localStor
 if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
 
 /* ---------- ui state ---------- */
-const S = { sort: "az", q: "", wq: "", view: "meals", storeFilter: "all", arrange: false, dragging: false, editing: null, confirmReset: false, settings: false };
+const S = { sort: "az", q: "", wq: "", cat: "all", wcat: "all", view: "meals", storeFilter: "all", arrange: false, dragging: false, editing: null, confirmReset: false, settings: false };
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const keyOf = s => String(s).trim().toLowerCase().replace(/\s+/g, " ");
@@ -332,8 +346,8 @@ function mealRow(m) {
   return `<div class="meal ${sel ? "selected" : ""}">
     <button class="info" data-pick="${m.id}" aria-pressed="${sel}">
       <span class="tick" aria-hidden="true">${sel ? "✓" : ""}</span>
-      <span class="txtcol"><span class="name">${esc(m.name)}</span>
-      <span class="ing">${sel ? "On this week’s list" : ago(m.lastPicked)} · ${m.ingredients.length} items</span></span>
+      <span class="txtcol"><span class="name">${esc(m.name)}<span class="cat ${catOf(m)}">${catName(catOf(m))}</span></span>
+      <span class="ing">${sel ? "On this week’s list" : ago(m.lastPicked)} · ${m.ingredients.length} items${m.notes ? " · has notes" : ""}</span></span>
     </button>
     <button class="btn ghost" data-edit="${m.id}" aria-label="Edit ${esc(m.name)}">Edit</button>
   </div>`;
@@ -369,12 +383,14 @@ function render() {
 
   if (S.view === "meals") {
     const q = keyOf(S.q);
-    const list = D.meals.filter(m => !q || keyOf(m.name).includes(q) || m.ingredients.some(i => keyOf(i).includes(q)))
+    const list = D.meals.filter(m => S.cat === "all" || catOf(m) === S.cat)
+      .filter(m => !q || keyOf(m.name).includes(q) || keyOf(m.notes || "").includes(q) || m.ingredients.some(i => keyOf(i).includes(q)))
       .sort(S.sort === "az" ? (a, b) => a.name.localeCompare(b.name) : (a, b) => (a.lastPicked || 0) - (b.lastPicked || 0));
     v.innerHTML = `<section>
       <div class="row"><h2 class="grow">Our meals</h2><button class="btn primary" id="new">+ New meal</button></div>
       ${D.meals.length ? `
-        <input class="field" id="q" type="search" placeholder="Search meals or ingredients" value="${esc(S.q)}" aria-label="Search meals">
+        <input class="field" id="q" type="search" placeholder="Search meals, ingredients or notes" value="${esc(S.q)}" aria-label="Search meals">
+        ${catChips("data-cat", S.cat, D.meals)}
         <div class="row"><span class="label">Sort</span><div class="chips">
           <button class="chip" data-sort="az" aria-pressed="${S.sort === "az"}">A–Z</button>
           <button class="chip" data-sort="old" aria-pressed="${S.sort === "old"}">Longest since picked</button>
@@ -388,23 +404,27 @@ function render() {
   }
 
   if (S.view === "week") {
-    const n = wm.length;
+    const mains = wm.filter(m => catOf(m) === "main"), n = mains.length;
     const rest = D.meals.filter(m => !D.week.meals[m.id]);
     const q = keyOf(S.wq);
-    const shown = rest.filter(m => !q || keyOf(m.name).includes(q)).sort((a, b) => (a.lastPicked || 0) - (b.lastPicked || 0));
+    const shown = rest.filter(m => S.wcat === "all" || catOf(m) === S.wcat).filter(m => !q || keyOf(m.name).includes(q)).sort((a, b) => (a.lastPicked || 0) - (b.lastPicked || 0));
+    const weekRow = (m, label) => `
+        <div class="weekmeal" style="align-items:flex-start"><span class="night">${label}</span>
+          <div class="grow"><span style="font-weight:600;display:block">${esc(m.name)}</span><span class="note">${m.ingredients.length} ingredients</span>
+          ${m.notes ? `<span class="mealnote">${esc(m.notes)}</span>` : ""}</div>
+          <span class="row" style="flex:none;gap:2px"><button class="btn ghost" data-edit="${m.id}">Edit</button><button class="btn ghost" data-pick="${m.id}">Remove</button></span></div>`;
+    const extrasPicked = CATS.filter(c => c.id !== "main").map(c => ({ c, ms: wm.filter(m => catOf(m) === c.id) })).filter(x => x.ms.length);
     v.innerHTML = `<section>
       <div class="row"><h2 class="grow">This week’s dinners</h2>
-        <div class="meter" aria-label="${n} of 6 dinners picked">${[0,1,2,3,4,5].map(i => `<span class="${i < n ? "on" : ""}"></span>`).join("")}</div></div>
-      ${n ? `<div class="meals">${wm.map((m, i) => `
-        <div class="weekmeal"><span class="night">${i + 1}</span>
-          <div class="grow"><span style="font-weight:600;display:block">${esc(m.name)}</span><span class="note">${m.ingredients.length} ingredients</span></div>
-          <button class="btn ghost" data-pick="${m.id}">Remove</button></div>`).join("")}</div>
-        <div class="row"><a class="btn primary" href="#list">Go to shopping list</a></div>`
-      : `<p class="note">No dinners picked yet. Tap meals below to add them.</p>`}
+        <div class="meter" aria-label="${n} of 6 mains picked">${[0,1,2,3,4,5].map(i => `<span class="${i < n ? "on" : ""}"></span>`).join("")}</div></div>
+      ${n ? `<div class="meals">${mains.map((m, i) => weekRow(m, i + 1)).join("")}</div>` : `<p class="note">No mains picked yet. Tap meals below to add them.</p>`}
+      ${extrasPicked.map(x => `<div class="label">${x.c.plural}</div><div class="meals">${x.ms.map(m => weekRow(m, "·")).join("")}</div>`).join("")}
+      ${wm.length ? `<div class="row"><a class="btn primary" href="#list">Go to shopping list</a></div>` : ""}
       ${!D.meals.length ? `<div class="empty"><strong>No saved meals yet</strong><span>Save some dinners in the Meals tab, then pick them here.</span><a class="btn primary" href="#meals">Add meals</a></div>`
         : !rest.length ? `<p class="note">Every saved meal is on this week’s list.</p>`
         : `<div class="row" style="margin-top:6px"><h2 class="grow" style="font-size:1.05rem">Add from saved meals</h2><span class="label">Longest since picked first</span></div>
           ${rest.length > 6 ? `<input class="field" id="wq" type="search" placeholder="Find a meal" value="${esc(S.wq)}" aria-label="Find a meal">` : ""}
+          ${catChips("data-wcat", S.wcat, rest)}
           ${shown.length ? `<div class="meals">${shown.map(mealRow).join("")}</div>` : `<p class="note">No meals match.</p>`}`}
       <div>
         ${S.confirmReset ? `<div class="confirm"><span>Start a new week? This clears the picked meals, the added items and all check marks. Saved meals, store choices and aisle order stay.</span>
@@ -470,9 +490,13 @@ function renderSheet() {
     <div class="row"><h2 class="grow">${m.id ? "Edit meal" : "New meal"}</h2><button type="button" class="btn ghost" id="close">Close</button></div>
     <label class="label" for="m-name">Meal name</label>
     <input class="field" id="m-name" required placeholder="Chicken enchiladas" value="${esc(m.name || "")}">
+    <span class="label">Category</span>
+    <div class="seg" id="m-cat" role="group" aria-label="Category">${CATS.map(c => `<button type="button" data-setcat="${c.id}" aria-pressed="${(m.id ? catOf(m) : (S.cat !== "all" ? S.cat : "main")) === c.id}">${c.name}</button>`).join("")}</div>
     <label class="label" for="m-ing">Ingredients · one per line</label>
     <textarea class="field" id="m-ing" placeholder="Chicken breasts&#10;Tortillas&#10;Enchilada sauce&#10;Shredded cheese&#10;Sour cream">${esc((m.ingredients || []).join("\n"))}</textarea>
     <p class="note">Use the same wording across meals (“Shredded cheese”, not “cheese, shredded”) so shared items combine into one line on the list.</p>
+    <label class="label" for="m-notes">Notes</label>
+    <textarea class="field short" id="m-notes" placeholder="Oven 375° for 25 min. Kids like it with extra cheese. Double the sauce.">${esc(m.notes || "")}</textarea>
     <div class="row"><button class="btn primary grow" style="justify-content:center">Save meal</button>${m.id ? `<button type="button" class="btn danger" id="del">Delete</button>` : ""}</div>
     <div id="del-confirm"></div>
   </form></div>`;
@@ -517,6 +541,9 @@ document.addEventListener("click", e => {
   else if (ds.edit) { S.editing = { ...D.meals.find(m => m.id === ds.edit) }; renderSheet(); }
   else if (ds.pick) togglePick(ds.pick);
   else if (ds.sort) { S.sort = ds.sort; render(); }
+  else if (ds.cat) { S.cat = ds.cat; render(); }
+  else if (ds.wcat) { S.wcat = ds.wcat; render(); }
+  else if (ds.setcat) { t.parentElement.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b === t)); }
   else if (ds.filter) { S.storeFilter = ds.filter; render(); }
   else if (ds.have) change(() => D.week.have[ds.have] = true);
   else if (ds.need) change(() => D.week.have[ds.need] = false);
@@ -570,10 +597,12 @@ document.addEventListener("submit", e => {
     const name = $("#m-name").value.trim(); if (!name) return;
     const seen = new Set();
     const ingredients = $("#m-ing").value.split("\n").map(s => s.trim()).filter(s => s && !seen.has(keyOf(s)) && seen.add(keyOf(s)));
+    const category = $('#m-cat [aria-pressed="true"]')?.dataset.setcat || "main";
+    const notes = $("#m-notes").value.trim();
     const ed = S.editing; closeSheet();
     change(() => {
-      if (ed.id) { const m = D.meals.find(x => x.id === ed.id); if (m) { m.name = name; m.ingredients = ingredients; } }
-      else D.meals.push({ id: uid(), name, ingredients, lastPicked: 0, createdAt: Date.now() });
+      if (ed.id) { const m = D.meals.find(x => x.id === ed.id); if (m) Object.assign(m, { name, ingredients, category, notes }); }
+      else D.meals.push({ id: uid(), name, ingredients, category, notes, lastPicked: 0, createdAt: Date.now() });
     });
     toast("Meal saved");
   }

@@ -1,6 +1,6 @@
 // Keeps Supper Board opening when the phone has no signal (e.g. inside the store).
 // Network first so updates arrive; falls back to the saved copy when offline.
-const CACHE = "supper-board-v1";
+const CACHE = "supper-board-v3";
 const FILES = ["./", "index.html", "manifest.webmanifest", "icon-180.png", "icon-512.png"];
 
 self.addEventListener("install", e => {
@@ -12,7 +12,8 @@ self.addEventListener("activate", e => {
 self.addEventListener("fetch", e => {
   if (e.request.method !== "GET") return;
   e.respondWith(
-    fetch(e.request).then(res => {
+    // Same-site files skip the browser's 10-minute cache so updates show up on the next open.
+    (new URL(e.request.url).origin === location.origin ? fetch(e.request.url, { cache: "no-cache" }) : fetch(e.request)).then(res => {
       if (res.ok && (new URL(e.request.url).origin === location.origin || e.request.url.includes("fonts.g"))) {
         const copy = res.clone();
         caches.open(CACHE).then(c => c.put(e.request, copy));

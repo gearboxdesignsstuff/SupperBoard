@@ -79,7 +79,7 @@ select.field, select.store { appearance: none; -webkit-appearance: none; cursor:
 .cat { font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: 2px; border: 1px solid currentColor; }
 .cat.main { color: var(--accent); } .cat.side { color: var(--aldi); } .cat.dessert { color: var(--other); }
 .seg { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-.seg button { flex: 1; border: 0; background: var(--surface); padding: 10px 8px; font-weight: 600; color: var(--muted); }
+.seg button { flex: 1; border: 0; background: var(--surface); padding: 12px 8px; font-weight: 600; font-size: 1rem; color: var(--muted); }
 .seg button + button { border-left: 1px solid var(--line); }
 .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
 .mealnote { display: block; font-size: 0.86rem; color: var(--ink); background: var(--surface-2); border-left: 3px solid var(--accent); border-radius: 0 8px 8px 0; padding: 6px 10px; margin-top: 6px; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -185,6 +185,7 @@ details .list { border: 0; border-top: 1px solid var(--line); border-radius: 0 0
 
 <script>
 const STORE_KEY = "supperboard.v1";
+const APP_VERSION = "3 (categories + notes)";
 const STORES = [
   { id: "kroger", name: "Kroger", color: "var(--kroger)" },
   { id: "aldi",   name: "Aldi",   color: "var(--aldi)" },
@@ -375,6 +376,7 @@ function render() {
         <p class="note">Save a backup now and then (to Files or iCloud Drive). If the app is deleted or the phone is replaced, restore from the backup to get every meal back.</p>
         <div class="row"><button class="btn primary" id="export">Save backup</button><button class="btn" id="import">Restore from backup…</button></div>
         <p class="note">${D.meals.length} meals saved${D.savedAt ? ` · last change ${new Date(D.savedAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}` : ""}.</p>
+        <p class="note">App version ${APP_VERSION}</p>
         ${storageOk ? "" : `<p class="note" style="color:var(--danger)">This browser isn't letting the app save. Turn off Private Browsing, or open it from the Home Screen icon.</p>`}
       </div>
     </section>`;
@@ -488,10 +490,10 @@ function renderSheet() {
   if (root.firstChild) return;
   root.innerHTML = `<div class="sheet-back" id="back"><form class="sheet" id="meal-form" role="dialog" aria-label="${m.id ? "Edit meal" : "New meal"}">
     <div class="row"><h2 class="grow">${m.id ? "Edit meal" : "New meal"}</h2><button type="button" class="btn ghost" id="close">Close</button></div>
-    <label class="label" for="m-name">Meal name</label>
-    <input class="field" id="m-name" required placeholder="Chicken enchiladas" value="${esc(m.name || "")}">
     <span class="label">Category</span>
     <div class="seg" id="m-cat" role="group" aria-label="Category">${CATS.map(c => `<button type="button" data-setcat="${c.id}" aria-pressed="${(m.id ? catOf(m) : (S.cat !== "all" ? S.cat : "main")) === c.id}">${c.name}</button>`).join("")}</div>
+    <label class="label" for="m-name">Meal name</label>
+    <input class="field" id="m-name" required placeholder="Chicken enchiladas" value="${esc(m.name || "")}">
     <label class="label" for="m-ing">Ingredients · one per line</label>
     <textarea class="field" id="m-ing" placeholder="Chicken breasts&#10;Tortillas&#10;Enchilada sauce&#10;Shredded cheese&#10;Sour cream">${esc((m.ingredients || []).join("\n"))}</textarea>
     <p class="note">Use the same wording across meals (“Shredded cheese”, not “cheese, shredded”) so shared items combine into one line on the list.</p>
